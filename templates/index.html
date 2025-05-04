@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система учета слонов в заповеднике</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!-- Добавьте это в <head> или перед вашим скриптом -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f7f9fc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .container {
+            margin-top: 20px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #4e73df;
+            color: white;
+            font-weight: 600;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        .btn-primary {
+            background-color: #4e73df;
+            border-color: #4e73df;
+        }
+        .btn-primary:hover {
+            background-color: #2e59d9;
+            border-color: #2e59d9;
+        }
+        .result-image {
+            max-width: 100%;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .nav-tabs .nav-link.active {
+            background-color: #4e73df;
+            color: white;
+            border-color: #4e73df;
+        }
+        .nav-tabs .nav-link {
+            color: #4e73df;
+        }
+        #video-container, #camera-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        #video-feed, #camera-feed {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+        }
+        .stats-card {
+            transition: transform 0.3s;
+        }
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+        .history-item {
+            transition: background-color 0.3s;
+            cursor: pointer;
+        }
+        .history-item:hover {
+            background-color: #f8f9fa;
+        }
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            display: none;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .table th {
+            background-color: #f8f9fc;
+        }
+    </style>
+</head>
+<body>
+    <!-- Оверлей загрузки -->
+    <div id="loading-overlay">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Загрузка...</span>
+        </div>
+    </div>
+
+    <!-- Навигационная панель -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-elephant me-2"></i>Система учета слонов
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="generate-excel-btn">
+                            <i class="fas fa-file-excel me-1"></i>Скачать отчет Excel
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="generate-pdf-btn">
+                            <i class="fas fa-file-pdf me-1"></i>Скачать отчет PDF
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Вкладки -->
+        <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">
+                    <i class="fas fa-upload me-1"></i>Загрузка файлов
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="camera-tab" data-bs-toggle="tab" data-bs-target="#camera" type="button" role="tab">
+                    <i class="fas fa-camera me-1"></i>Камера
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button" role="tab">
+                    <i class="fas fa-chart-bar me-1"></i>Статистика
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab">
+                    <i class="fas fa-history me-1"></i>История
+                </button>
+            </li>
+        </ul>
+
+        <!-- Содержимое вкладок -->
+        <div class="tab-content" id="myTabContent">
+            <!-- Вкладка загрузки -->
+            <div class="tab-pane fade show active" id="upload" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="fas fa-upload me-1"></i>Загрузка изображений/видео
+                            </div>
+                            <div class="card-body">
+                                <form id="upload-form" enctype="multipart/form-data">
+                                    <div class="mb-3">
+                                        <label for="file-upload" class="form-label">Выберите файл для загрузки</label>
+                                        <input class="form-control" type="file" id="file-upload" accept="image/*, video/*" required>
+                                        <div class="form-text">Поддерживаемые форматы: JPG, PNG, MP4, AVI, MOV</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-search me-1"></i>Обнаружить слонов
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card" id="results-card" style="display: none;">
+                            <div class="card-header">
+                                <i class="fas fa-search me-1"></i>Результаты обнаружения
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between mb-3">
+                                    <div>
+                                        <h5 id="result-filename"></h5>
+                                        <p class="mb-1">Тип: <span id="result-type"></span></p>
+                                        <p class="mb-1">Обнаружено слонов: <span id="result-count" class="fw-bold"></span></p>
+                                        <p class="mb-0">Время обработки: <span id="result-time"></span></p>
+                                    </div>
+                                </div>
+                                <div class="text-center" id="result-preview">
+                                    <img id="result-image" class="result-image img-fluid" src="" alt="Результат обнаружения">
+                                    <video id="result-video" class="result-image img-fluid" controls style="display: none;">
+                                        <source src="" type="video/mp4">
+                                        Ваш браузер не поддерживает видео.
+                                    </video>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка камеры -->
+            <div class="tab-pane fade" id="camera" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-7">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="fas fa-camera me-1"></i>Потоковое видео с камеры
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="camera-select" class="form-label">Выберите камеру</label>
+                                    <select class="form-select" id="camera-select">
+                                        <option value="0">Основная камера (0)</option>
+                                        <option value="1">Альтернативная камера (1)</option>
+                                    </select>
+                                </div>
+                                <div class="d-flex justify-content-between mb-3">
+                                    <button class="btn btn-primary" id="start-camera-btn">
+                                        <i class="fas fa-play me-1"></i>Запустить камеру
+                                    </button>
+                                    <button class="btn btn-danger" id="stop-camera-btn" disabled>
+                                        <i class="fas fa-stop me-1"></i>Остановить камеру
+                                    </button>
+                                </div>
+                                <div id="camera-container" class="mb-3">
+                                    <img id="camera-feed" src="/static/placeholder.jpg" alt="Камера не активна">
+                                </div>
+                                <button class="btn btn-success" id="capture-btn" disabled>
+                                    <i class="fas fa-camera me-1"></i>Сделать снимок и обнаружить слонов
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="card" id="camera-results-card" style="display: none;">
+                            <div class="card-header">
+                                <i class="fas fa-search me-1"></i>Результаты обнаружения
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between mb-3">
+                                    <div>
+                                        <h5 id="camera-result-filename"></h5>
+                                        <p class="mb-1">Обнаружено слонов: <span id="camera-result-count" class="fw-bold"></span></p>
+                                        <p class="mb-0">Время обработки: <span id="camera-result-time"></span></p>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <img id="camera-result-image" class="result-image img-fluid" src="" alt="Результат обнаружения">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка статистики -->
+            <div class="tab-pane fade" id="stats" role="tabpanel">
+                <div class="row mb-4">
+                    <div class="col-xl-3 col-md-6">
+                        <div class="card stats-card bg-primary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5 class="card-title">Всего обработано</h5>
+                                        <h2 id="total-detections">0</h2>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-file-image fa-3x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="card stats-card bg-success text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5 class="card-title">Всего слонов</h5>
+                                        <h2 id="total-elephants">0</h2>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-elephant fa-3x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="card stats-card bg-info text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5 class="card-title">В среднем на файл</h5>
+                                        <h2 id="avg-elephants">0</h2>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-chart-line fa-3x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="card stats-card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5 class="card-title">Изображения/Видео</h5>
+                                        <h2 id="type-ratio">0/0</h2>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-file-video fa-3x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-xl-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="fas fa-chart-line me-1"></i>Динамика обнаружений
+                            </div>
+                            <div class="card-body">
+                                <canvas id="detection-chart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="fas fa-chart-pie me-1"></i>Распределение по типам
+                            </div>
+                            <div class="card-body">
+                                <canvas id="type-chart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка истории -->
+            <div class="tab-pane fade" id="history" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-history me-1"></i>История обнаружений
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="history-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Дата и время</th>
+                                        <th>Имя файла</th>
+                                        <th>Тип</th>
+                                        <th>Обнаружено слонов</th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-tbody">
+                                    <!-- История будет добавлена здесь -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для просмотра результатов из истории -->
+    <div class="modal fade" id="history-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="history-modal-title">Результат обнаружения</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="text-center">
+                                <img id="history-modal-image" class="img-fluid" src="" alt="Результат обнаружения">
+                                <video id="history-modal-video" class="img-fluid" controls style="display: none;">
+                                    <source src="" type="video/mp4">
+                                    Ваш браузер не поддерживает видео.
+                                </video>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h5>Детали:</h5>
+                            <p><strong>ID:</strong> <span id="history-modal-id"></span></p>
+                            <p><strong>Дата:</strong> <span id="history-modal-date"></span></p>
+                            <p><strong>Тип:</strong> <span id="history-modal-type"></span></p>
+                            <p><strong>Имя файла:</strong> <span id="history-modal-filename"></span></p>
+                            <p><strong>Обнаружено слонов:</strong> <span id="history-modal-count"></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Графики для статистики
+        let detectionChart;
+        let typeChart;
+        
+        // Запуск после загрузки страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            // Загрузка истории и статистики
+            loadHistory();
+            loadStats();
+            
+            // Настройка формы загрузки
+            document.getElementById('upload-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                uploadFile();
+            });
+            
+            // Настройка камеры
+            document.getElementById('start-camera-btn').addEventListener('click', startCamera);
+            document.getElementById('stop-camera-btn').addEventListener('click', stopCamera);
+            document.getElementById('capture-btn').addEventListener('click', captureAndProcess);
+            
+            // Настройка генерации отчетов
+            document.getElementById('generate-excel-btn').addEventListener('click', function() {
+                window.location.href = '/generate_excel_report';
+            });
+            document.getElementById('generate-pdf-btn').addEventListener('click', function() {
+                window.location.href = '/generate_pdf_report';
+            });
+        });
+        
+        // Функция загрузки файла
+        function uploadFile() {
+            const fileInput = document.getElementById('file-upload');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Показываем оверлей загрузки
+            document.getElementById('loading-overlay').style.display = 'flex';
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Скрываем оверлей загрузки
+                document.getElementById('loading-overlay').style.display = 'none';
+                
+                if (data.success) {
+                    displayResults(data.result);
+                    // Обновляем статистику
+                    loadStats();
+                    loadHistory();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading-overlay').style.display = 'none';
+                alert('Ошибка: ' + error);
+            });
+        }
+        
+        // Функция отображения результатов
+        function displayResults(result) {
+            document.getElementById('result-filename').textContent = result.file_name;
+            document.getElementById('result-type').textContent = result.type;
+            document.getElementById('result-count').textContent = result.elephants_detected;
+            
+            // Преобразуем timestamp в удобочитаемый формат
+            const timestamp = new Date(result.timestamp);
+            document.getElementById('result-time').textContent = timestamp.toLocaleString();
+            
+            // Отображаем соответствующий тип медиа
+            if (result.type === 'image' || result.type === 'camera_capture') {
+                document.getElementById('result-image').src = '/static/' + result.processed_file;
+                document.getElementById('result-image').style.display = 'block';
+                document.getElementById('result-video').style.display = 'none';
+            } else if (result.type === 'video') {
+                document.getElementById('result-video').src = result.processed_file;
+                document.getElementById('result-video').style.display = 'block';
+                document.getElementById('result-image').style.display = 'none';
+                
+                // Если есть превью для видео
+                if (result.preview) {
+                    document.getElementById('result-image').src = '/static/' + result.preview;
+                    document.getElementById('result-image').style.display = 'block';
+                    document.getElementById('result-video').style.display = 'none';
+                }
+            }
+            
+            // Показываем карточку с результатами
+            document.getElementById('results-card').style.display = 'block';
+        }
+        
+        // Функция отображения результатов с камеры
+        function displayCameraResults(result) {
+            document.getElementById('camera-result-filename').textContent = result.file_name;
+            document.getElementById('camera-result-count').textContent = result.elephants_detected;
+            
+            // Преобразуем timestamp в удобочитаемый формат
+            const timestamp = new Date(result.timestamp);
+            document.getElementById('camera-result-time').textContent = timestamp.toLocaleString();
+            
+            // Отображаем изображение
+            document.getElementById('camera-result-image').src = '/static/' + result.processed_file;
+            
+            // Показываем карточку с результатами
+            document.getElementById('camera-results-card').style.display = 'block';
+        }
+        
+        // Функция запуска камеры
+        function startCamera() {
+            const cameraId = document.getElementById('camera-select').value;
+            
+            const formData = new FormData();
+            formData.append('camera_id', cameraId);
+            
+            fetch('/start_camera', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Подключаем видеопоток
+                    document.getElementById('camera-feed').src = '/video_feed?_=' + new Date().getTime();
+                    
+                    // Включаем/выключаем кнопки
+                    document.getElementById('start-camera-btn').disabled = true;
+                    document.getElementById('stop-camera-btn').disabled = false;
+                    document.getElementById('capture-btn').disabled = false;
+                } else {
+                    alert('Ошибка запуска камеры: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Ошибка: ' + error);
+            });
+        }
+        
+        // Функция остановки камеры
+        function stopCamera() {
+            fetch('/stop_camera', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Сбрасываем источник изображения
+                    document.getElementById('camera-feed').src = '/static/placeholder.jpg';
+                    
+                    // Включаем/выключаем кнопки
+                    document.getElementById('start-camera-btn').disabled = false;
+                    document.getElementById('stop-camera-btn').disabled = true;
+                    document.getElementById('capture-btn').disabled = true;
+                }
+            })
+            .catch(error => {
+                alert('Ошибка: ' + error);
+            });
+        }
+        
+        // Функция захвата кадра и обработки
+        function captureAndProcess() {
+            // Показываем оверлей загрузки
+            document.getElementById('loading-overlay').style.display = 'flex';
+            
+            fetch('/capture_and_process', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Скрываем оверлей загрузки
+                document.getElementById('loading-overlay').style.display = 'none';
+                
+                if (data.success) {
+                    displayCameraResults(data.result);
+                    // Обновляем статистику
+                    loadStats();
+                    loadHistory();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading-overlay').style.display = 'none';
+                alert('Ошибка: ' + error);
+            });
+        }
+        
+        // Функция загрузки истории
+        function loadHistory() {
+            fetch('/history')
+            .then(response => response.json())
+            .then(data => {
+                // Очищаем таблицу
+                const tbody = document.getElementById('history-tbody');
+                tbody.innerHTML = '';
+                
+                // Добавляем данные в обратном порядке (сначала новые)
+                data.slice().reverse().forEach(item => {
+                    const row = document.createElement('tr');
+                    row.className = 'history-item';
+                    
+                    // Форматируем дату
+                    let timestamp = item.timestamp;
+                    if (typeof timestamp === 'string') {
+                        timestamp = new Date(timestamp).toLocaleString();
+                    } else {
+                        timestamp = new Date(timestamp).toLocaleString();
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${timestamp}</td>
+                        <td>${item.file_name}</td>
+                        <td>${item.type}</td>
+                        <td>${item.elephants_detected}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary view-btn" data-id="${item.id}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    `;
+                    
+                    // Добавляем обработчик для просмотра
+                    row.querySelector('.view-btn').addEventListener('click', () => {
+                        showHistoryItem(item);
+                    });
+                    
+                    tbody.appendChild(row);
+                });
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки истории:', error);
+            });
+        }
+        
+        // Функция показа элемента истории
+        function showHistoryItem(item) {
+            document.getElementById('history-modal-id').textContent = item.id;
+            document.getElementById('history-modal-filename').textContent = item.file_name;
+            document.getElementById('history-modal-type').textContent = item.type;
+            document.getElementById('history-modal-count').textContent = item.elephants_detected;
+            
+            // Форматируем дату
+            let timestamp = item.timestamp;
+            if (typeof timestamp === 'string') {
+                timestamp = new Date(timestamp).toLocaleString();
+            } else {
+                timestamp = new Date(timestamp).toLocaleString();
+            }
+            document.getElementById('history-modal-date').textContent = timestamp;
+            
+            // Определяем тип медиа
+            if (item.type === 'video') {
+                document.getElementById('history-modal-image').style.display = 'none';
+                document.getElementById('history-modal-video').style.display = 'block';
+                document.getElementById('history-modal-video').src = item.processed_file;
+                
+                // Если есть превью для видео
+                if (item.preview) {
+                    document.getElementById('history-modal-image').src = '/static/' + item.preview;
+                    document.getElementById('history-modal-image').style.display = 'block';
+                    document.getElementById('history-modal-video').style.display = 'none';
+                }
+            } else {
+                document.getElementById('history-modal-image').style.display = 'block';
+                document.getElementById('history-modal-video').style.display = 'none';
+                document.getElementById('history-modal-image').src = '/static/' + item.processed_file;
+            }
+            
+            // Показываем модальное окно
+            const modal = new bootstrap.Modal(document.getElementById('history-modal'));
+            modal.show();
+        }
+        
+        // Функция загрузки статистики
+        function loadStats() {
+            fetch('/stats')
+            .then(response => response.json())
+            .then(data => {
+                // Обновляем данные на странице
+                document.getElementById('total-detections').textContent = data.total_detections;
+                document.getElementById('total-elephants').textContent = data.total_elephants;
+                document.getElementById('avg-elephants').textContent = data.avg_elephants_per_detection.toFixed(2);
+                
+                // Вычисляем соотношение типов
+                let imageCount = 0;
+                let videoCount = 0;
+                
+                if (data.detections_by_type.image) {
+                    imageCount = data.detections_by_type.image.count;
+                }
+                
+                if (data.detections_by_type.video) {
+                    videoCount = data.detections_by_type.video.count;
+                }
+                
+                document.getElementById('type-ratio').textContent = `${imageCount}/${videoCount}`;
+                
+                // Обновляем графики
+                updateCharts(data);
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки статистики:', error);
+            });
+        }
+        
+        // Функция обновления графиков
+        function updateCharts(data) {
+            // График динамики обнаружений
+            const ctx1 = document.getElementById('detection-chart').getContext('2d');
+            
+            // Уничтожаем старый график если он существует
+            if (detectionChart) {
+                detectionChart.destroy();
+            }
+            
+            // Создаем новый график
+            detectionChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: data.detection_history.map(item => {
+                        const date = new Date(item.timestamp);
+                        return date.toLocaleTimeString();
+                    }),
+                    datasets: [{
+                        label: 'Количество обнаруженных слонов',
+                        data: data.detection_history.map(item => item.elephants),
+                        borderColor: '#4e73df',
+                        backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Время обнаружения'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Количество слонов'
+                            },
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // График распределения по типам
+            const ctx2 = document.getElementById('type-chart').getContext('2d');
+            
+            // Подготовка данных для круговой диаграммы
+            const types = Object.keys(data.detections_by_type);
+            const typeLabels = {
+                'image': 'Изображения',
+                'video': 'Видео',
+                'camera_capture': 'Камера'
+            };
+            
+            // Уничтожаем старый график если он существует
+            if (typeChart) {
+                typeChart.destroy();
+            }
+            
+            // Создаем новый график
+            typeChart = new Chart(ctx2, {
+                type: 'pie',
+                data: {
+                    labels: types.map(type => typeLabels[type] || type),
+                    datasets: [{
+                        data: types.map(type => data.detections_by_type[type].count),
+                        backgroundColor: [
+                            'rgba(78, 115, 223, 0.8)',
+                            'rgba(28, 200, 138, 0.8)',
+                            'rgba(246, 194, 62, 0.8)',
+                            'rgba(231, 74, 59, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
