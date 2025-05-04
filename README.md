@@ -61,7 +61,7 @@ mkdir -p uploads results static/results
 python app.py
 ```
 
-После запуска приложение будет доступно по адресу http://localhost:5000
+После запуска приложение будет доступно по адресу http://localhost:8080
 
 ## Структура проекта
 
